@@ -1,0 +1,230 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Auth Models ───────────────────────────────────────────
+
+model User {
+  id             String    @id @default(cuid())
+  name           String?
+  email          String    @unique
+  hashedPassword String
+  image          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  shops Shop[]
+}
+
+// ─── Shop Models ───────────────────────────────────────────
+
+enum ShopStatus {
+  PENDING
+  CONNECTING
+  ACTIVE
+  DISCONNECTED
+  ERROR
+}
+
+model Shop {
+  id        String     @id @default(cuid())
+  name      String
+  status    ShopStatus @default(PENDING)
+  region    String     @default("US")
+  currency  String     @default("USD")
+  avatarUrl String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tikTokToken  TikTokToken?
+  shopSettings ShopSettings?
+  orders       Order[]
+  products     Product[]
+  dailyMetrics DailyMetric[]
+
+  @@index([userId])
+}
+
+model TikTokToken {
+  id           String   @id @default(cuid())
+  accessToken  String
+  refreshToken String
+  expiresAt    DateTime
+  scopes       String[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  shopId String @unique
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+}
+
+model ShopSettings {
+  id                    String  @id @default(cuid())
+  notificationsEnabled  Boolean @default(true)
+  emailNotifications    Boolean @default(true)
+  syncIntervalMinutes   Int     @default(30)
+  monthlyRevenueGoal    Float   @default(10000)
+  annualRevenueGoal     Float   @default(120000)
+
+  shopId String @unique
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+}
+
+// ─── Order Models ──────────────────────────────────────────
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+  RETURNED
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  orderNumber     String      @unique
+  status          OrderStatus @default(PENDING)
+  totalAmount     Float
+  currency        String      @default("USD")
+  customerName    String
+  customerEmail   String?
+  shippingAddress String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  items OrderItem[]
+
+  @@index([shopId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id        String @id @default(cuid())
+  quantity  Int
+  unitPrice Float
+  totalPrice Float
+
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+// ─── Product Models ────────────────────────────────────────
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+  OUT_OF_STOCK
+}
+
+model Product {
+  id           String        @id @default(cuid())
+  name         String
+  description  String?
+  sku          String
+  price        Float
+  stock        Int           @default(0)
+  totalSold    Int           @default(0)
+  totalRevenue Float         @default(0)
+  rating       Float         @default(0)
+  category     String?
+  imageUrl     String?
+  status       ProductStatus @default(ACTIVE)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  orderItems OrderItem[]
+  variants   ProductVariant[]
+
+  @@index([shopId])
+  @@index([category])
+}
+
+model ProductVariant {
+  id           String  @id @default(cuid())
+  name         String                        // e.g. "Red / L", "Blue / M"
+  sku          String
+  price        Float
+  stock        Int     @default(0)
+  totalSold    Int     @default(0)
+  totalRevenue Float   @default(0)
+  imageUrl     String?
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+// ─── Metrics ───────────────────────────────────────────────
+
+model DailyMetric {
+  id             String   @id @default(cuid())
+  date           DateTime @db.Date
+  revenue        Float    @default(0)
+  orderCount     Int      @default(0)
+  unitsSold      Int      @default(0)
+  averageOrderValue Float @default(0)
+  newCustomers   Int      @default(0)
+  conversionRate Float    @default(0)
+
+  // Channel revenue breakdown
+  liveStreamRevenue   Float @default(0)
+  shortVideoRevenue   Float @default(0)
+  mallRevenue         Float @default(0)
+  influencerRevenue   Float @default(0)
+
+  // Channel order count breakdown
+  liveStreamOrders  Int @default(0)
+  shortVideoOrders  Int @default(0)
+  mallOrders        Int @default(0)
+  influencerOrders  Int @default(0)
+
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  liveStreamRooms LiveStreamRoom[]
+
+  @@unique([shopId, date])
+  @@index([shopId])
+  @@index([date])
+}
+
+model LiveStreamRoom {
+  id          String   @id @default(cuid())
+  roomName    String                          // e.g. "Main Live Room", "Evening Flash Sale"
+  hostName    String?                         // e.g. streamer / host name
+  startTime   DateTime?
+  endTime     DateTime?
+  viewers     Int      @default(0)
+  revenue     Float    @default(0)
+  orderCount  Int      @default(0)
+  gmv         Float    @default(0)
+
+  dailyMetricId String
+  dailyMetric   DailyMetric @relation(fields: [dailyMetricId], references: [id], onDelete: Cascade)
+
+  @@index([dailyMetricId])
+}
