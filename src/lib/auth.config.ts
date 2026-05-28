@@ -1,16 +1,23 @@
 import type { NextAuthConfig } from "next-auth";
 
+const DISABLE_AUTH = process.env.DISABLE_AUTH === "true";
+
 export const authConfig = {
   pages: {
     signIn: "/login",
   },
   callbacks: {
     authorized({ auth, request: { nextUrl } }) {
+      // ── Direct-access mode: never block, never redirect to login ──
+      if (DISABLE_AUTH) return true;
+
       const isLoggedIn = !!auth?.user;
-      const isOnDashboard = nextUrl.pathname.startsWith("/shops") ||
+      const isOnDashboard =
+        nextUrl.pathname.startsWith("/shops") ||
         nextUrl.pathname.startsWith("/shop") ||
         nextUrl.pathname.startsWith("/settings");
-      const isOnAuth = nextUrl.pathname.startsWith("/login") ||
+      const isOnAuth =
+        nextUrl.pathname.startsWith("/login") ||
         nextUrl.pathname.startsWith("/register");
 
       if (isOnDashboard) {

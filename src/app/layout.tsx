@@ -6,6 +6,7 @@ import { SessionProvider } from "@/providers/session-provider";
 import { QueryProvider } from "@/providers/query-provider";
 import { LanguageProvider } from "@/providers/language-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { auth } from "@/lib/auth";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -22,17 +23,20 @@ export const metadata: Metadata = {
   description: "Manage your TikTok shops with powerful analytics and insights",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Provide the session to the client so useSession() works in no-login mode.
+  const session = await auth();
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <SessionProvider>
+        <SessionProvider session={session}>
           <QueryProvider>
             <ThemeProvider
               attribute="class"
